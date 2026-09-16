@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --esprit-red: #e2001a;
+  --esprit-black: #121212;
+  --esprit-gray: #9ca3a6;
+  --esprit-offwhite: #f6f5f4;
+  --esprit-charcoal: #1e1e1e;
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--esprit-offwhite);
+  color: var(--esprit-black);
+}
+
+/* Coin coupé en biais, référence au triangle du logo ESPRIT */
+.cut-corner {
+  clip-path: polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%);
+}
+
+.cut-corner-sm {
+  clip-path: polygon(0 0, 100% 0, 100% 90%, 90% 100%, 0 100%);
+}
+
+/* Focus clavier visible partout, accessibilité */
+:focus-visible {
+  outline: 2px solid var(--esprit-red);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(150%);
+  }
+  100% {
+    transform: translateX(150%);
+  }
+}
