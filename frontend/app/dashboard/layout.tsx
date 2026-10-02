@@ -27,6 +27,7 @@ const studentNav = [
 const teacherNav = [
   { href: "/dashboard", label: "Vue d'ensemble", icon: LayoutGrid },
   { href: "/dashboard/teacher/exercises", label: "Mes exercices", icon: BookPlus },
+  { href: "/dashboard/teacher/exercises/new", label: "Nouveaux exercices", icon: BookPlus },
   { href: "/dashboard/profile", label: "Profil", icon: User },
 ];
 

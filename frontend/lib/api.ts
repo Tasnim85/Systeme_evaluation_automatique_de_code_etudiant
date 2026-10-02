@@ -7,19 +7,17 @@ const TOKEN_KEY = "esprit_token";
 // direct fonctionne sans configuration supplémentaire.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const TOKEN_KEY_STORAGE = TOKEN_KEY;
-
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY_STORAGE);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string) {
-  localStorage.setItem(TOKEN_KEY_STORAGE, token);
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY_STORAGE);
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
@@ -89,6 +87,12 @@ export const api = {
   createExercise: (data: ExerciseCreatePayload) =>
     apiFetch("/exercises", { method: "POST", body: JSON.stringify(data) }),
   myExercises: () => apiFetch("/exercises/mine"),
+
+  // Soumissions vues par l'enseignant
+  exerciseSubmissions: (exerciseId: number) =>
+    apiFetch(`/exercises/${exerciseId}/submissions`),
+  submissionDetail: (submissionId: number) =>
+    apiFetch(`/teacher/submissions/${submissionId}`),
 
   // Évaluation
   evaluate: (data: { exercise_id: number; code: string }) =>

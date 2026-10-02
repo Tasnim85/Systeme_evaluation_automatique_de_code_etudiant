@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 from collections import Counter
@@ -20,7 +21,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="ESPRIT Code Evaluator API",
     description="Évaluation automatique de code étudiant, avec classes, exercices assignés et historique",
-    version="1.1.0"
+    version="1.2.0"
 )
 
 app.add_middleware(
@@ -48,6 +49,16 @@ def require_student(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "etudiant":
         raise HTTPException(status_code=403, detail="Réservé aux étudiants.")
     return current_user
+
+
+def get_owned_exercise(db: Session, exercise_id: int, teacher: User) -> Exercise:
+    """Retourne l'exercice seulement s'il appartient à cet enseignant."""
+    ex = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+    if not ex:
+        raise HTTPException(status_code=404, detail="Exercice introuvable.")
+    if ex.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Cet exercice ne t'appartient pas.")
+    return ex
 
 
 # ---------- Schémas ----------
@@ -216,6 +227,14 @@ def my_exercises(
         .order_by(Exercise.created_at.desc())
         .all()
     )
+
+    counts = dict(
+        db.query(Submission.exercise_id, func.count(Submission.id))
+        .filter(Submission.exercise_id.in_([e.id for e in exercises]))
+        .group_by(Submission.exercise_id)
+        .all()
+    )
+
     return [
         {
             "id": e.id,
@@ -223,6 +242,8 @@ def my_exercises(
             "mode": e.mode,
             "language": e.language,
             "classe": e.classe.nom,
+            "enonce": e.enonce,
+            "nb_submissions": counts.get(e.id, 0),
             "created_at": e.created_at.isoformat(),
         }
         for e in exercises
@@ -253,6 +274,77 @@ def list_exercises_for_student(
         }
         for e in exercises
     ]
+
+
+# ---------- Soumissions vues par l'enseignant ----------
+
+@app.get("/exercises/{exercise_id}/submissions")
+def exercise_submissions(
+    exercise_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    ex = get_owned_exercise(db, exercise_id, current_user)
+
+    rows = (
+        db.query(Submission, User)
+        .join(User, User.id == Submission.user_id)
+        .filter(Submission.exercise_id == ex.id)
+        .order_by(Submission.created_at.desc())
+        .all()
+    )
+
+    notes = [s.note for s, _ in rows if s.note is not None]
+    return {
+        "exercise": {
+            "id": ex.id,
+            "titre": ex.titre,
+            "mode": ex.mode,
+            "language": ex.language,
+            "classe": ex.classe.nom,
+        },
+        "stats": {
+            "total": len(rows),
+            "etudiants": len({u.id for _, u in rows}),
+            "moyenne": round(sum(notes) / len(notes), 1) if notes else None,
+        },
+        "submissions": [
+            {
+                "id": s.id,
+                "student": {"id": u.id, "nom": u.nom, "prenom": u.prenom, "email": u.email},
+                "note": s.note,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s, u in rows
+        ],
+    }
+
+
+@app.get("/teacher/submissions/{submission_id}")
+def submission_detail_for_teacher(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    s = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Soumission introuvable.")
+    get_owned_exercise(db, s.exercise_id, current_user)  # vérifie la propriété
+
+    student = db.get(User, s.user_id)
+    return {
+        "id": s.id,
+        "student": {"nom": student.nom, "prenom": student.prenom, "email": student.email},
+        "mode": s.mode,
+        "enonce": s.enonce,
+        "code": s.code,
+        "language": s.language,
+        "static_metrics": s.static_metrics,
+        "sonar_results": s.sonar_results,
+        "feedback": s.feedback,
+        "note": s.note,
+        "created_at": s.created_at.isoformat(),
+    }
 
 
 # ---------- Évaluation ----------

@@ -1,262 +1,212 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Plus, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
-const LANGUAGES = [
-  { value: "python", label: "Python" },
-  { value: "java", label: "Java (+ Spring)" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "typescript", label: "TypeScript (+ Angular)" },
-  { value: "php", label: "PHP (+ Symfony)" },
-  { value: "html", label: "HTML" },
-  { value: "css", label: "CSS" },
-  { value: "csharp", label: "C# (.NET)" },
-];
+const cutBR = {
+  clipPath:
+    "polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%)",
+};
 
-export default function TeacherExercisesPage() {
-  const [classes, setClasses] = useState<{ id: number; nom: string }[]>([]);
-  const [myExercises, setMyExercises] = useState<any[]>([]);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [newClasseName, setNewClasseName] = useState("");
-  const [classeError, setClasseError] = useState<string | null>(null);
-  const [creatingClasse, setCreatingClasse] = useState(false);
+type ModeFilter = "all" | "exam" | "review";
 
-  const [exerciseForm, setExerciseForm] = useState({
-    classe_id: "",
-    mode: "review" as "review" | "exam",
-    language: "python",
-    titre: "",
-    enonce: "",
-  });
-  const [exerciseError, setExerciseError] = useState<string | null>(null);
-  const [creatingExercise, setCreatingExercise] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+export default function TeacherExercisesListPage() {
+  const [exercises, setExercises] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [openId, setOpenId] = useState<number | null>(null);
 
-  function loadData() {
-    api.listClasses().then(setClasses);
-    api.myExercises().then(setMyExercises);
-  }
+  const [search, setSearch] = useState("");
+  const [classe, setClasse] = useState("all");
+  const [mode, setMode] = useState<ModeFilter>("all");
 
   useEffect(() => {
-    loadData();
+    api
+      .myExercises()
+      .then(setExercises)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
   }, []);
 
-  async function handleCreateClasse(e: React.FormEvent) {
-    e.preventDefault();
-    setClasseError(null);
-    setCreatingClasse(true);
-    try {
-      await api.createClasse(newClasseName);
-      setNewClasseName("");
-      loadData();
-    } catch (err: any) {
-      setClasseError(err.message);
-    } finally {
-      setCreatingClasse(false);
-    }
-  }
+  const classes = useMemo(
+    () => Array.from(new Set(exercises.map((e) => e.classe))).sort(),
+    [exercises]
+  );
 
-  async function handleCreateExercise(e: React.FormEvent) {
-    e.preventDefault();
-    setExerciseError(null);
-    setSuccessMessage(null);
-    if (!exerciseForm.classe_id) {
-      setExerciseError("Sélectionne une classe.");
-      return;
-    }
-    setCreatingExercise(true);
-    try {
-      const created = await api.createExercise({
-        ...exerciseForm,
-        classe_id: Number(exerciseForm.classe_id),
-      });
-      setSuccessMessage("Exercice créé et assigné avec succès.");
-      setExerciseForm((f) => ({ ...f, titre: "", enonce: "" }));
-      api.myExercises().then((list) => {
-        setMyExercises(list);
-        setExpandedId(created.id); // déplie l'exercice qu'on vient de créer
-      });
-      api.listClasses().then(setClasses);
-    } catch (err: any) {
-      setExerciseError(err.message);
-    } finally {
-      setCreatingExercise(false);
-    }
-  }
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return exercises.filter(
+      (e) =>
+        (classe === "all" || e.classe === classe) &&
+        (mode === "all" || e.mode === mode) &&
+        (!q || `${e.titre} ${e.language}`.toLowerCase().includes(q))
+    );
+  }, [exercises, search, classe, mode]);
+
+  const totalSubs = exercises.reduce((n, e) => n + (e.nb_submissions ?? 0), 0);
 
   return (
-    <div className="p-8 md:p-12 max-w-5xl">
-      <h1 className="font-display font-semibold text-3xl text-esprit-black">
-        Gérer mes exercices
-      </h1>
-      <p className="mt-2 text-esprit-black/60">
-        Crée des classes et assigne des exercices de code review ou d'examen.
-      </p>
-
-      <div className="mt-10 grid md:grid-cols-2 gap-8">
-        {/* Créer une classe */}
-        <div className="bg-white cut-corner p-6">
-          <h2 className="font-display font-semibold text-lg text-esprit-black">
-            Créer une classe
-          </h2>
-          <form onSubmit={handleCreateClasse} className="mt-4 flex gap-2">
-            <input
-              required
-              value={newClasseName}
-              onChange={(e) => setNewClasseName(e.target.value)}
-              placeholder="ex: 4DS9"
-              className="flex-1 border border-esprit-black/15 px-3 py-2 focus:border-esprit-red outline-none transition-colors"
-            />
-            <button
-              type="submit"
-              disabled={creatingClasse}
-              className="px-4 py-2 bg-esprit-red text-white font-medium cut-corner-sm hover:bg-esprit-red-dark transition-colors disabled:opacity-60"
-            >
-              <Plus size={18} />
-            </button>
-          </form>
-          {classeError && <p className="mt-2 text-sm text-esprit-red">{classeError}</p>}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {classes.map((c) => (
-              <span key={c.id} className="px-3 py-1 bg-esprit-offwhite text-sm text-esprit-black/70">
-                {c.nom}
-              </span>
-            ))}
-            {classes.length === 0 && (
-              <p className="text-sm text-esprit-black/40">Aucune classe créée pour l'instant.</p>
-            )}
-          </div>
+    <div className="space-y-8">
+      {/* ---------- En-tête ---------- */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-4xl font-bold">Mes exercices</h1>
+          <p className="mt-2 text-gray-500">
+            {exercises.length} exercice(s) · {totalSubs} soumission(s) reçues
+          </p>
         </div>
+        <Link
+          href="/dashboard/teacher/exercises/new"
+          className="inline-flex items-center gap-2 bg-[#E2001A] px-5 py-3 text-sm font-medium text-white hover:bg-[#b80015]"
+        >
+          <span className="text-lg leading-none">+</span> Nouvel exercice
+        </Link>
+      </header>
 
-        {/* Mes exercices */}
-        <div className="bg-white cut-corner p-6">
-          <h2 className="font-display font-semibold text-lg text-esprit-black">
-            Mes exercices
-          </h2>
-          <div className="mt-4 space-y-1 max-h-80 overflow-y-auto">
-            {myExercises.map((ex) => (
-              <button
+      {error && (
+        <p className="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
+
+      {/* ---------- Filtres ---------- */}
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher un exercice…"
+          className="w-full max-w-xs border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#E2001A] focus:outline-none"
+        />
+
+        <select
+          value={classe}
+          onChange={(e) => setClasse(e.target.value)}
+          className="border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#E2001A] focus:outline-none"
+        >
+          <option value="all">Toutes les classes</option>
+          {classes.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex bg-white">
+          {(
+            [
+              ["all", "Tous"],
+              ["exam", "Examen"],
+              ["review", "Review"],
+            ] as [ModeFilter, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setMode(value)}
+              className={`px-4 py-2 text-sm transition-colors ${
+                mode === value
+                  ? "bg-[#121212] text-white"
+                  : "text-gray-600 hover:bg-[#F6F5F4]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ---------- Liste ---------- */}
+      {loading ? (
+        <div className="grid gap-5 md:grid-cols-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-44 animate-pulse bg-gray-200" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white px-6 py-16 text-center" style={cutBR}>
+          <p className="font-display text-lg font-semibold">
+            {exercises.length === 0
+              ? "Aucun exercice pour l'instant"
+              : "Aucun résultat"}
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            {exercises.length === 0
+              ? "Crée ton premier exercice pour qu'il apparaisse ici."
+              : "Essaie de modifier les filtres."}
+          </p>
+          {exercises.length === 0 && (
+            <Link
+              href="/dashboard/teacher/exercises/new"
+              className="mt-5 inline-block bg-[#E2001A] px-5 py-2.5 text-sm text-white hover:bg-[#b80015]"
+            >
+              Créer un exercice
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="grid items-start gap-5 md:grid-cols-2">
+          {filtered.map((ex) => {
+            const isOpen = openId === ex.id;
+            const isExam = ex.mode === "exam";
+            return (
+              <article
                 key={ex.id}
-                onClick={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
-                className="w-full text-left text-sm py-2 border-b border-esprit-black/5"
+                className="flex flex-col bg-white p-5 pb-8"
+                style={cutBR}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-esprit-black">{ex.titre}</p>
-                    <p className="text-xs text-esprit-black/50">
-                      {ex.classe} · {ex.language} · {ex.mode === "exam" ? "Examen" : "Review"}
-                    </p>
-                  </div>
-                  <ChevronDown
-                    size={16}
-                    className={`text-esprit-black/30 transition-transform ${
-                      expandedId === ex.id ? "rotate-180" : ""
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="font-display text-lg font-semibold leading-tight">
+                    {ex.titre}
+                  </h2>
+                  <span
+                    className={`shrink-0 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white ${
+                      isExam ? "bg-[#E2001A]" : "bg-[#121212]"
                     }`}
-                  />
+                  >
+                    {isExam ? "Examen" : "Review"}
+                  </span>
                 </div>
-                {expandedId === ex.id && (
-                  <p className="mt-2 text-esprit-black/70 leading-relaxed bg-esprit-offwhite p-3">
-                    {ex.enonce}
+
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <span className="bg-[#F6F5F4] px-2.5 py-1 text-gray-600">
+                    {ex.classe}
+                  </span>
+                  <span className="bg-[#F6F5F4] px-2.5 py-1 text-gray-600">
+                    {ex.language}
+                  </span>
+                  <span className="px-1 py-1 text-gray-400">
+                    {new Date(ex.created_at).toLocaleDateString("fr-FR")}
+                  </span>
+                </div>
+
+                {isOpen && (
+                  <p className="mt-4 max-h-60 overflow-auto whitespace-pre-wrap break-words border-l-4 border-[#E2001A] bg-[#F6F5F4] p-3 text-sm text-gray-700">
+                    {ex.enonce || "Aucun énoncé."}
                   </p>
                 )}
-              </button>
-            ))}
-            {myExercises.length === 0 && (
-              <p className="text-sm text-esprit-black/40">Aucun exercice créé pour l'instant.</p>
-            )}
-          </div>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <button
+                    onClick={() => setOpenId(isOpen ? null : ex.id)}
+                    className="text-sm text-gray-600 underline-offset-2 hover:text-[#E2001A] hover:underline"
+                  >
+                    {isOpen ? "Masquer l'énoncé" : "Voir l'énoncé"}
+                  </button>
+
+                  <Link
+                    href={`/dashboard/teacher/exercises/${ex.id}/submissions`}
+                    className="inline-flex items-center gap-2 bg-[#121212] px-4 py-2 text-sm text-white hover:bg-[#E2001A]"
+                  >
+                    Soumissions
+                    <span className="bg-white/20 px-1.5 text-xs">
+                      {ex.nb_submissions ?? 0}
+                    </span>
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
         </div>
-      </div>
-
-      {/* Créer un exercice */}
-      <div className="mt-8 bg-white cut-corner p-6">
-        <h2 className="font-display font-semibold text-lg text-esprit-black">
-          Créer un exercice
-        </h2>
-        <form onSubmit={handleCreateExercise} className="mt-4 space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-sm font-medium text-esprit-black">Classe</label>
-              <select
-                value={exerciseForm.classe_id}
-                onChange={(e) => setExerciseForm((f) => ({ ...f, classe_id: e.target.value }))}
-                className="mt-1 w-full border border-esprit-black/15 px-3 py-2 bg-white focus:border-esprit-red outline-none"
-              >
-                <option value="">— Choisir —</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nom}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-esprit-black">Mode</label>
-              <select
-                value={exerciseForm.mode}
-                onChange={(e) =>
-                  setExerciseForm((f) => ({ ...f, mode: e.target.value as "review" | "exam" }))
-                }
-                className="mt-1 w-full border border-esprit-black/15 px-3 py-2 bg-white focus:border-esprit-red outline-none"
-              >
-                <option value="review">Code Review</option>
-                <option value="exam">Examen</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-esprit-black">Langage</label>
-              <select
-                value={exerciseForm.language}
-                onChange={(e) => setExerciseForm((f) => ({ ...f, language: e.target.value }))}
-                className="mt-1 w-full border border-esprit-black/15 px-3 py-2 bg-white focus:border-esprit-red outline-none"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l.value} value={l.value}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-esprit-black">Titre</label>
-            <input
-              required
-              value={exerciseForm.titre}
-              onChange={(e) => setExerciseForm((f) => ({ ...f, titre: e.target.value }))}
-              placeholder="ex: Calcul de factorielle"
-              className="mt-1 w-full border border-esprit-black/15 px-3 py-2 focus:border-esprit-red outline-none transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-esprit-black">Énoncé</label>
-            <textarea
-              required
-              rows={4}
-              value={exerciseForm.enonce}
-              onChange={(e) => setExerciseForm((f) => ({ ...f, enonce: e.target.value }))}
-              placeholder="Écrire une fonction qui calcule la factorielle d'un nombre..."
-              className="mt-1 w-full border border-esprit-black/15 px-3 py-2 focus:border-esprit-red outline-none transition-colors resize-none"
-            />
-          </div>
-
-          {exerciseError && <p className="text-sm text-esprit-red">{exerciseError}</p>}
-          {successMessage && <p className="text-sm text-green-600">{successMessage}</p>}
-
-          <button
-            type="submit"
-            disabled={creatingExercise}
-            className="px-6 py-2.5 bg-esprit-red text-white font-medium cut-corner-sm hover:bg-esprit-red-dark transition-colors disabled:opacity-60"
-          >
-            {creatingExercise ? "Création..." : "Créer et assigner"}
-          </button>
-        </form>
-      </div>
+      )}
     </div>
   );
 }

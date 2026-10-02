@@ -6,6 +6,7 @@ import { Upload, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ExportPdfButton } from "./ExportPdfButton";
 import { LoadingScreen } from "./LoadingScreen";
+import { FeedbackView } from "./FeedbackView";
 
 interface Exercise {
   id: number;
@@ -151,7 +152,7 @@ export function SubmissionWorkspace({ mode }: Props) {
               <p className="text-xs font-medium text-esprit-black/50 mb-1">
                 ÉNONCÉ · {selectedExercise.language}
               </p>
-              <p className="text-sm text-esprit-black/85 leading-relaxed">
+              <p className="text-sm text-esprit-black/85 leading-relaxed whitespace-pre-wrap">
                 {selectedExercise.enonce}
               </p>
             </motion.div>
@@ -199,46 +200,29 @@ export function SubmissionWorkspace({ mode }: Props) {
         </form>
       )}
 
-      <AnimatePresence>
-        {result && selectedExercise && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-            className="mt-12 border-t border-esprit-black/10 pt-8"
-          >
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <h2 className="font-display font-semibold text-2xl text-esprit-black">
-                Feedback
-              </h2>
-              <div className="flex items-center gap-4">
-                {mode === "exam" && result.note != null && (
-                  <motion.div
-                    initial={{ scale: 0.6, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 18 }}
-                    className="bg-esprit-red text-white cut-corner-sm px-4 py-2 flex items-center gap-1"
-                  >
-                    <span className="font-display font-bold text-xl">{result.note}</span>
-                    <span className="text-sm opacity-90">/20</span>
-                  </motion.div>
-                )}
-                <ExportPdfButton
-                  enonce={selectedExercise.enonce}
-                  code={code}
-                  language={selectedExercise.language}
-                  mode={mode}
-                  feedback={result.feedback}
-                  note={result.note}
-                />
-              </div>
-            </div>
-            <div className="mt-6 bg-white cut-corner p-6 md:p-8 whitespace-pre-wrap leading-relaxed text-esprit-black/85">
-              {result.feedback}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {result && selectedExercise && (
+        <div className="mt-12 border-t border-esprit-black/10 pt-8">
+          <h2 className="mb-5 font-display font-semibold text-2xl text-esprit-black">
+            Feedback
+          </h2>
+          <FeedbackView
+            feedback={result.feedback}
+            note={result.note}
+            mode={mode}
+            metrics={result.static_metrics}
+            actions={
+              <ExportPdfButton
+                enonce={selectedExercise.enonce}
+                code={code}
+                language={selectedExercise.language}
+                mode={mode}
+                feedback={result.feedback}
+                note={result.note}
+              />
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
